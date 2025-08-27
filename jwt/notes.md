@@ -282,3 +282,50 @@ AuthenticationManager → orchestrates all providers.
     - Spring Security checks the `Authentication` object in `SecurityContext`.
     - If role matches → request proceeds.
     - Else → AccessDeniedHandler (your `RestAccessDeniedHandler`) returns 403
+
+
+1. Login
+
+User authenticates (username + password).
+Server issues:
+Access Token (short-lived, e.g., 15 min)
+Refresh Token (longer-lived, e.g., 7 days or 30 days)
+👉 Access token is used for requests; refresh token is only for getting new access tokens.
+
+2. Using the API
+
+Client sends access token in the Authorization header (Bearer).
+Backend checks validity (signature + expiry).
+If valid → proceed.
+If expired → reject with 401.
+
+3. Refreshing
+
+When client gets a 401 due to expired access token, it calls /refresh endpoint:
+```
+POST /refresh
+Authorization: Bearer <refresh_token>
+```
+Server:
+Validates refresh token (checks DB/Redis or signature).
+If valid, issues new Access Token (and optionally a new Refresh Token).
+If invalid/expired → client must re-login.
+
+**We do NOT send access token to refresh endpoint.**
+
+4. Logout
+
+Client calls /logout with refresh token.
+Server deletes that refresh token from DB (or marks as revoked).
+Access token will naturally expire in a few minutes.
+Any attempt to refresh after logout → rejected.
+
+❌ Wrong Assumption
+
+“We send access token to refresh endpoint, server looks it up in DB, and if invalid, issues refresh token.”
+
+That’s not how it works in production systems.
+Access token is never used to generate refresh token.
+Refresh token is the only credential to get a new access token.
+If refresh token is gone/expired, user must log in again.
+
